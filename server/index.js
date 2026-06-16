@@ -2,7 +2,8 @@ import express from 'express';
 import mongoose from 'mongoose';
 import cors from 'cors';
 import dotenv from 'dotenv';
-import shopRoutes from './routes/shopRoutes.js'; // <-- Added this line
+import shopRoutes from './routes/shopRoutes.js'; 
+import cartRoutes from './routes/cart.js'; // 👈 1. Added your Cart router import here
 
 // Load environment configurations
 dotenv.config();
@@ -14,7 +15,8 @@ app.use(express.json());
 app.use(cors());        
 
 // Use our ShopEZ API routes
-app.use('/api', shopRoutes); // <-- Added this line. All routes now start with /api
+app.use('/api', shopRoutes); 
+app.use('/api', cartRoutes); // 👈 2. Added this line! Your backend will now accept /api/cart/remove/:id
 
 // Default testing route
 app.get('/', (req, res) => {
