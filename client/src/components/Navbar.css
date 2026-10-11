@@ -1,0 +1,111 @@
+.navbar-container {
+    display: flex;
+    justify-content: space-between;
+    padding: 16px 40px;
+    background: var(--bg);
+    border-bottom: 1px solid var(--border);
+    align-items: center;
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    backdrop-filter: blur(8px);
+    box-shadow: 0 1px 3px rgba(0,0,0,0.02);
+}
+
+.navbar-logo {
+    margin: 0;
+    fontSize: 24px;
+    fontWeight: 700;
+    letterSpacing: -0.5px;
+    color: var(--text-h);
+    cursor: pointer;
+    userSelect: none;
+    transition: transform 0.2s ease;
+}
+
+.navbar-logo span {
+    color: var(--accent);
+}
+
+.navbar-actions {
+    display: flex;
+    gap: 16px;
+    align-items: center;
+}
+
+.navbar-welcome {
+    fontSize: 15px;
+    color: var(--text);
+    marginRight: 8px;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.navbar-username {
+    color: var(--text-h);
+}
+
+.navbar-badge {
+    fontSize: 11px;
+    fontWeight: 600;
+    text-transform: uppercase;
+    background: var(--code-bg);
+    color: var(--text);
+    padding: 2px 8px;
+    borderRadius: 12px;
+    border: 1px solid var(--border);
+}
+
+.navbar-btn {
+    padding: 10px 20px;
+    color: #ffffff;
+    border: none;
+    borderRadius: 6px;
+    fontSize: 15px;
+    fontWeight: 500;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    transition: opacity 0.2s ease, transform 0.1s ease;
+}
+
+.navbar-btn-accent {
+    background: var(--accent);
+    box-shadow: 0 2px 4px rgba(170, 59, 255, 0.15);
+}
+
+.navbar-btn-outline {
+    background: transparent;
+    color: var(--text-h);
+    border: 1px solid var(--border);
+    box-shadow: none;
+}
+
+.navbar-btn-admin {
+    background: var(--text-h);
+    color: var(--bg);
+}
+
+.navbar-btn-logout {
+    background: rgba(217, 83, 79, 0.1);
+    color: #d9534f;
+    box-shadow: none;
+    border: 1px solid rgba(217, 83, 79, 0.2);
+}
+
+.navbar-admin-link {
+    fontSize: 14px;
+    color: var(--text);
+    cursor: pointer;
+    marginLeft: 8px;
+    opacity: 0.65;
+    textDecoration: underline;
+    textUnderlineOffset: 3px;
+    transition: opacity 0.2s ease;
+}
+
+.navbar-admin-link:hover {
+    opacity: 1;
+}

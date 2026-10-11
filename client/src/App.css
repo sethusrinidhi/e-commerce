@@ -213,3 +213,25 @@
     height: 48px;
   }
 }
+.product-card-link {
+  text-decoration: none;
+  color: inherit;
+  display: block;
+}
+
+.product-card {
+  transition: transform 0.3s ease, box-shadow 0.3s ease;
+  cursor: pointer;
+}
+
+/* Lift the card on hover */
+.product-card:hover {
+  transform: translateY(-5px);
+  box-shadow: 0 10px 20px rgba(0, 0, 0, 0.12);
+}
+
+/* Subtle image zoom */
+.product-card:hover .product-img {
+  transform: scale(1.03);
+  transition: transform 0.3s ease;
+}

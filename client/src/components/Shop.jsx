@@ -1,7 +1,8 @@
+// client/src/components/Shop.jsx
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 
-const Shop = ({ user, setPage }) => {
+const Shop = ({ user, setPage, onViewDetails }) => {
     const [products, setProducts] = useState([]);
     const [loading, setLoading] = useState(true);
 
@@ -10,27 +11,28 @@ const Shop = ({ user, setPage }) => {
     }, []);
 
     const fetchProducts = async () => {
-        try {
-            const res = await axios.get('http://localhost:8000/api/products');
-            
-            /* 💎 LUXURY FILTERING ENGINE: 
-               Automatically prioritizes premium luxury goods valued above ₹10,000.
-               If your database doesn't have them yet, it falls back to show all items.
-            */
-            const premiumItems = res.data.filter(product => product.price >= 10000);
-            setProducts(premiumItems.length > 0 ? premiumItems : res.data);
-        } catch (err) {
-            console.error("Error loading products", err);
-        } finally {
-            setLoading(false);
-        }
-    };
+    try {
+        const res = await axios.get('http://localhost:8000/api/shop/products');
+        
+        // 🛠️ REMOVED THE FILTER: This will show all products regardless of price
+        setProducts(res.data);
+    } catch (err) {
+        console.error("Error loading products", err);
+    } finally {
+        setLoading(false);
+    }
+};
 
-    const handleAddToCart = async (product) => {
-        if (!user) return alert("Please log in to add items to your cart! 🔒");
+    const handleAddToCart = async (e, product) => {
+        e.stopPropagation(); // 🛡️ Prevents clicking the button from triggering onViewDetails
+        if (!user) {
+            alert("Please log in to add items to your cart! 🔒");
+            setPage('login');
+            return;
+        }
         try {
             await axios.post('http://localhost:8000/api/cart/add', {
-                userId: user.id,
+                userId: user.id || user._id,
                 title: product.title,
                 price: product.price,
                 mainimg: product.mainimg,
@@ -42,11 +44,16 @@ const Shop = ({ user, setPage }) => {
         }
     };
 
-    const handleBuyNow = async (product) => {
-        if (!user) return alert("Please log in to purchase items! 🔒");
+    const handleBuyNow = async (e, product) => {
+        e.stopPropagation(); // 🛡️ Prevents clicking the button from triggering onViewDetails
+        if (!user) {
+            alert("Please log in to purchase items! 🔒");
+            setPage('login');
+            return;
+        }
         try {
             await axios.post('http://localhost:8000/api/cart/add', {
-                userId: user.id,
+                userId: user.id || user._id,
                 title: product.title,
                 price: product.price,
                 mainimg: product.mainimg,
@@ -78,7 +85,13 @@ const Shop = ({ user, setPage }) => {
         );
     }
 
-    if (loading) return <div style={loadingContainerStyle}><h3 style={loadingTextStyle}>Curating high-tier catalog... 📦💫</h3></div>;
+    if (loading) {
+        return (
+            <div style={loadingContainerStyle}>
+                <h3 style={loadingTextStyle}>Curating high-tier catalog... 📦💫</h3>
+            </div>
+        );
+    }
 
     return (
         <div style={marketContainerStyle}>
@@ -94,21 +107,24 @@ const Shop = ({ user, setPage }) => {
                     <div 
                         key={product._id} 
                         style={cardStyle}
+                        onClick={() => onViewDetails(product._id)} // 🌟 Seamless transitions to specifications detail page
                         onMouseEnter={(e) => {
                             e.currentTarget.style.transform = 'translateY(-10px)';
                             e.currentTarget.style.boxShadow = '0 20px 40px rgba(170, 59, 255, 0.15)';
-                            e.currentTarget.querySelector('.product-img').style.transform = 'scale(1.08)';
+                            const img = e.currentTarget.querySelector('.product-img');
+                            if (img) img.style.transform = 'scale(1.08)';
                         }}
                         onMouseLeave={(e) => {
                             e.currentTarget.style.transform = 'translateY(0)';
                             e.currentTarget.style.boxShadow = '0 10px 30px rgba(0, 0, 0, 0.04)';
-                            e.currentTarget.querySelector('.product-img').style.transform = 'scale(1)';
+                            const img = e.currentTarget.querySelector('.product-img');
+                            if (img) img.style.transform = 'scale(1)';
                         }}
                     >
                         {/* PREMIUM IMAGE BOX WITH GLOW OVERLAY */}
                         <div style={imageWrapperStyle}>
                             <img 
-                                src={product.mainimg} 
+                                src={product.mainimg || 'https://via.placeholder.com/300'} 
                                 alt={product.title} 
                                 className="product-img"
                                 style={productImageStyle} 
@@ -126,26 +142,26 @@ const Shop = ({ user, setPage }) => {
                                 {/* High-Value Dynamic Localized Currency Layout */}
                                 <div style={priceContainerStyle}>
                                     <span style={currencySymbolStyle}>₹</span>
-                                    <span style={priceStyle}>{product.price.toLocaleString('en-IN')}</span>
+                                    <span style={priceStyle}>{product.price ? product.price.toLocaleString('en-IN') : '0'}</span>
                                 </div>
                                 
                                 <div style={actionGroupStyle}>
                                     <button 
-                                        onClick={() => handleAddToCart(product)} 
+                                        onClick={(e) => handleAddToCart(e, product)} 
                                         style={cartButtonStyle}
                                         onMouseEnter={(e) => {
-                                            e.currentTarget.style.background = 'rgba(255, 255, 255, 0.05)';
-                                            e.currentTarget.style.borderColor = 'var(--accent)';
+                                            e.currentTarget.style.background = 'rgba(170, 59, 255, 0.05)';
+                                            e.currentTarget.style.borderColor = '#aa3bff';
                                         }}
                                         onMouseLeave={(e) => {
                                             e.currentTarget.style.background = 'transparent';
-                                            e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.15)';
+                                            e.currentTarget.style.borderColor = 'rgba(0, 0, 0, 0.15)';
                                         }}
                                     >
                                         🛒 Add to Bag
                                     </button>
                                     <button 
-                                        onClick={() => handleBuyNow(product)} 
+                                        onClick={(e) => handleBuyNow(e, product)} 
                                         style={buyButtonStyle}
                                         onMouseEnter={(e) => e.currentTarget.style.opacity = '0.9'}
                                         onMouseLeave={(e) => e.currentTarget.style.opacity = '1'}
@@ -174,7 +190,8 @@ const gateContainerStyle = {
     borderRadius: '24px',
     background: '#111215',
     border: '1px solid #22252a',
-    boxShadow: '0 30px 60px rgba(0,0,0,0.4)'
+    boxShadow: '0 30px 60px rgba(0,0,0,0.4)',
+    fontFamily: 'system-ui, -apple-system, sans-serif'
 };
 
 const emojiBadgeStyle = {
@@ -278,6 +295,7 @@ const cardStyle = {
     boxShadow: '0 10px 30px rgba(0, 0, 0, 0.04)',
     display: 'flex',
     flexDirection: 'column',
+    cursor: 'pointer',
     transition: 'transform 0.4s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.4s cubic-bezier(0.16, 1, 0.3, 1)'
 };
 

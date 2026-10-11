@@ -13,19 +13,27 @@ const Auth = ({ type, setPage, setUser }) => {
         setMessage('');
         setLoading(true);
         
-        const url = type === 'register' ? 'http://localhost:8000/api/register' : 'http://localhost:8000/api/login';
+        // 🛠️ Match exactly what works: both 'login' and 'admin-login' use the exact same stable backend login route
+        const url = type === 'register' 
+            ? 'http://localhost:8000/api/shop/register' 
+            : 'http://localhost:8000/api/shop/login';
+            
         const payload = type === 'register' ? { username, email, password } : { email, password };
 
         try {
             const res = await axios.post(url, payload);
             setMessage(res.data.message || "Successful!");
             
-            if (type === 'login' && res.data.user) {
-                // Passes both user payload data and secure verification token up to App.jsx
-                setUser(res.data.user, res.data.token);
-                setPage('shop');
-            } else if (type === 'register') {
+            if (type === 'register') {
                 setTimeout(() => setPage('login'), 1500);
+            } else if (res.data.user) {
+                // 🌟 THE CRITICAL FIX: Save token immediately to local storage on login/admin-login
+                if (res.data.token) {
+                    localStorage.setItem('token', res.data.token);
+                }
+
+                // Passes user profile metadata and authentication token safely up to App.jsx
+                setUser(res.data.user, res.data.token);
             }
         } catch (err) {
             setMessage(err.response?.data?.message || err.response?.data?.error || "Something went wrong!");
@@ -34,14 +42,18 @@ const Auth = ({ type, setPage, setUser }) => {
         }
     };
 
-    // Dynamic configuration engine for our cute lovable interface theme mapping
+    // Configuration flags for our state switcher
     const isRegister = type === 'register';
-    const dynamicEmoji = isRegister ? '✨👋💖' : '🔒✨🔑';
+    const isAdminLogin = type === 'admin-login';
+    
+    // Dynamic theme mapping based on authentication mode
+    const dynamicEmoji = isAdminLogin ? '🛡️✨🛠️' : isRegister ? '✨👋💖' : '🔒✨🔑';
     const isSuccessMessage = message.includes('Successful') || message.includes('successfully') || message.includes('created');
 
     return (
         <div style={containerStyle}>
-            <div style={cardStyle}>
+            {/* If it's an admin portal, we change the frame color subtly to indicate security entry */}
+            <div style={{ ...cardStyle, borderColor: isAdminLogin ? '#e11d48' : 'var(--border)' }}>
                 
                 {/* LOVABLE REACTION BADGE */}
                 <div style={emojiFrameStyle}>
@@ -49,11 +61,22 @@ const Auth = ({ type, setPage, setUser }) => {
                 </div>
 
                 {/* COLORFUL BRAND ACCENT HEADER */}
-                <h2 style={gradientTitleStyle}>
-                    {isRegister ? 'Create an Account' : 'Login to SHOP SC'}
+                <h2 style={{ 
+                    ...gradientTitleStyle, 
+                    background: isAdminLogin 
+                        ? 'linear-gradient(135deg, #e11d48 0%, #ef4444 100%)' 
+                        : 'linear-gradient(135deg, #aa3bff 0%, #0275d8 100%)',
+                    WebkitBackgroundClip: 'text',
+                    WebkitTextFillColor: 'transparent'
+                }}>
+                    {isAdminLogin ? 'Admin Gateway' : isRegister ? 'Create an Account' : 'Login to SHOP SC'}
                 </h2>
                 <p style={subtitleStyle}>
-                    {isRegister ? 'Join us today to unlock premium luxury pieces!' : 'Welcome back, beautiful soul! Let’s get you inside.'}
+                    {isAdminLogin 
+                        ? 'Authorized Staff Operations Only' 
+                        : isRegister 
+                            ? 'Join us today to unlock premium luxury pieces!' 
+                            : 'Welcome back, beautiful soul! Let’s get you inside.'}
                 </p>
 
                 <form onSubmit={handleSubmit} style={formStyle}>
@@ -86,7 +109,7 @@ const Auth = ({ type, setPage, setUser }) => {
                     <div style={inputContainerStyle}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                             <label style={labelStyle}>Password</label>
-                            {!isRegister && (
+                            {!isRegister && !isAdminLogin && (
                                 <span style={forgotLinkStyle} onClick={() => setPage('forgot')}>
                                     Forgot Password?
                                 </span>
@@ -102,8 +125,16 @@ const Auth = ({ type, setPage, setUser }) => {
                         />
                     </div>
 
-                    <button type="submit" disabled={loading} style={submitButtonStyle}>
-                        {loading ? 'Processing... ✨' : isRegister ? 'Create Account 🌸' : 'Sign In Safely 🚀'}
+                    <button 
+                        type="submit" 
+                        disabled={loading} 
+                        style={{ 
+                            ...submitButtonStyle, 
+                            background: isAdminLogin ? '#e11d48' : 'var(--accent)',
+                            boxShadow: isAdminLogin ? '0 4px 12px rgba(225, 29, 72, 0.25)' : '0 4px 12px rgba(170, 59, 255, 0.25)'
+                        }}
+                    >
+                        {loading ? 'Processing... ✨' : isAdminLogin ? 'Verify & Authenticate 🛠️' : isRegister ? 'Create Account 🌸' : 'Sign In Safely 🚀'}
                     </button>
                 </form>
 
@@ -121,12 +152,21 @@ const Auth = ({ type, setPage, setUser }) => {
 
                 {/* FOOTER SWITCHER LINK */}
                 <div style={toggleBoxStyle}>
-                    <p style={toggleTextStyle}>
-                        {isRegister ? 'Already have an account?' : "Don't have an account?"}{' '}
-                        <span style={toggleLinkStyle} onClick={() => setPage(isRegister ? 'login' : 'register')}>
-                            {isRegister ? 'Login here' : 'Register free'}
-                        </span>
-                    </p>
+                    {isAdminLogin ? (
+                        <p style={toggleTextStyle}>
+                            Not staff?{' '}
+                            <span style={toggleLinkStyle} onClick={() => setPage('shop')}>
+                                Return to Public Shop
+                            </span>
+                        </p>
+                    ) : (
+                        <p style={toggleTextStyle}>
+                            {isRegister ? 'Already have an account?' : "Don't have an account?"}{' '}
+                            <span style={toggleLinkStyle} onClick={() => setPage(isRegister ? 'login' : 'register')}>
+                                {isRegister ? 'Login here' : 'Register free'}
+                            </span>
+                        </p>
+                    )}
                 </div>
 
             </div>
@@ -135,7 +175,7 @@ const Auth = ({ type, setPage, setUser }) => {
 };
 
 /* ==========================================================================
-   PREMIUM SYSTEM UI INTERFACE STYLING
+    PREMIUM SYSTEM UI INTERFACE STYLING (Preserved perfectly)
    ========================================================================== */
 
 const containerStyle = {
@@ -181,9 +221,6 @@ const gradientTitleStyle = {
     fontWeight: '800',
     letterSpacing: '-0.5px',
     margin: '0 0 8px 0',
-    background: 'linear-gradient(135deg, #aa3bff 0%, #0275d8 100%)',
-    WebkitBackgroundClip: 'text',
-    WebkitTextFillColor: 'transparent',
     display: 'inline-block'
 };
 
@@ -236,13 +273,11 @@ const submitButtonStyle = {
     padding: '14px',
     fontSize: '16px',
     fontWeight: '600',
-    background: 'var(--accent)',
     color: 'white',
     border: 'none',
     borderRadius: '8px',
     cursor: 'pointer',
     marginTop: '8px',
-    boxShadow: '0 4px 12px rgba(170, 59, 255, 0.25)',
     transition: 'opacity 0.2s, transform 0.1s'
 };
 

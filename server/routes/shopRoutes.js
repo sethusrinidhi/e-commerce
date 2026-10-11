@@ -7,187 +7,293 @@ const router = express.Router();
 const JWT_SECRET = process.env.JWT_SECRET || "SUPER_SECRET_KEY_DONT_SHARE";
 
 // ==========================================
-// 1. AUTHENTICATION ENDPOINTS (SECURED)
+// 🛡️ IMPROVED MIDDLEWARE
 // ==========================================
+const verifyUser = (req, res, next) => {
+    const authHeader = req.headers.authorization;
+    if (!authHeader) return res.status(401).json({ message: "Access Denied: No token" });
+    const token = authHeader.replace('Bearer ', '');
+    try {
+        req.user = jwt.verify(token, JWT_SECRET);
+        next();
+    } catch (err) {
+        return res.status(403).json({ message: "Session expired" });
+    }
+};
 
-// SECURE REGISTER USER
+const verifyAdmin = (req, res, next) => {
+    const authHeader = req.headers.authorization;
+    if (!authHeader) return res.status(401).json({ message: "Access Denied: No token" });
+    const token = authHeader.replace('Bearer ', '');
+    try {
+        const decoded = jwt.verify(token, JWT_SECRET);
+        if (decoded.usertype !== 'admin') return res.status(403).json({ message: "Admin only" });
+        req.user = decoded;
+        next();
+    } catch (err) {
+        return res.status(403).json({ message: "Session expired" });
+    }
+};
+
+// ==========================================
+// 1. AUTHENTICATION (REGISTER & LOGIN)
+// ==========================================
 router.post('/register', async (req, res) => {
     try {
-        const { username, email, password } = req.body;
-        
-        // Check if user already exists
+        const { username, email, password, usertype } = req.body;
         const existingUser = await User.findOne({ email });
         if (existingUser) return res.status(400).json({ message: "User already exists!" });
 
-        // Note: The pre-save hook in Schemas.js will automatically encrypt the password here
-        const newUser = new User({ username, email, password });
+        const newUser = new User({ username, email, password, usertype: usertype || 'user' });
         await newUser.save();
         res.status(201).json({ message: "User registered successfully!" });
     } catch (err) {
-        res.status(400).json({ error: err.message });
+        res.status(400).json({ message: err.message });
     }
 });
 
-// SECURE LOGIN USER (Generates JWT Token)
 router.post('/login', async (req, res) => {
-    const { email, password } = req.body;
     try {
-        const user = await User.findOne({ email });
+        const { email, password } = req.body;
+        const user = await User.findOne({ email: email.toLowerCase() });
         if (!user) return res.status(401).json({ message: "Invalid email or password!" });
 
-        // Compare encrypted password using bcrypt
         const isMatch = await bcrypt.compare(password, user.password);
         if (!isMatch) return res.status(401).json({ message: "Invalid email or password!" });
 
-        // Generate Secure Expiry Passkey Token
         const token = jwt.sign({ id: user._id, usertype: user.usertype }, JWT_SECRET, { expiresIn: '1d' });
-
         res.status(200).json({ 
+            success: true,
             message: "Authentication Successful", 
             token, 
-            user: { id: user._id, username: user.username, usertype: user.usertype } 
+            user: { id: user._id, username: user.username, email: user.email, usertype: user.usertype } 
         });
     } catch (err) {
-        res.status(500).json({ error: err.message });
+        console.error("LOGIN ERROR:", err);
+        res.status(500).json({ message: err.message });
     }
 });
-// ==========================================
-// 1B. PASSWORD RESET ENDPOINTS (OTP FLOW)
-// ==========================================
 
-// REQUEST OTP FOR PASSWORD RESET
+// ==========================================
+// 1B. PASSWORD RESET
+// ==========================================
 router.post('/forgot-password', async (req, res) => {
     const { email } = req.body;
     try {
         const user = await User.findOne({ email });
-        if (!user) return res.status(404).json({ message: "No account found with this email address." });
-
-        // Generate a 6-digit numeric OTP string
+        if (!user) return res.status(404).json({ message: "No account found." });
         const otp = Math.floor(100000 + Math.random() * 900000).toString();
-        
-        // Set OTP to expire in 10 minutes
         user.otp = otp;
-        user.otpExpires = Date.now() + 10 * 60 * 1000; 
+        user.otpExpires = Date.now() + 10 * 60 * 1000; // 10 minutes expiry
         await user.save();
-
-        // DEV LOG: This lets you see the OTP right in your VS Code terminal!
-        console.log(`\n========== [ ShopEZ OTP SECURITY GATEWAY ] ==========`);
-        console.log(`Password reset requested for: ${email}`);
-        console.log(`Your 6-Digit OTP Token is: ${otp}`);
-        console.log(`=====================================================\n`);
-
-        res.status(200).json({ message: "OTP sent successfully! Please check your server terminal console." });
+        console.log(`OTP for ${email}: ${otp}`);
+        res.status(200).json({ message: "OTP sent to console." });
     } catch (err) {
-        res.status(500).json({ error: err.message });
+        res.status(500).json({ message: err.message });
     }
 });
 
-// VERIFY OTP AND RESET PASSWORD
 router.post('/reset-password', async (req, res) => {
     const { email, otp, newPassword } = req.body;
     try {
-        const user = await User.findOne({ 
-            email, 
-            otp, 
-            otpExpires: { $gt: Date.now() } // Ensures OTP hasn't expired yet
-        });
-
-        if (!user) return res.status(400).json({ message: "Invalid OTP token or code has expired!" });
-
-        // Update to new password (the pre-save hook in Schemas.js will auto-encrypt this)
+        const user = await User.findOne({ email, otp, otpExpires: { $gt: Date.now() } });
+        if (!user) return res.status(400).json({ message: "Invalid or expired OTP" });
         user.password = newPassword;
-        user.otp = null;        // Clear OTP tokens post-utilization
+        user.otp = null;
         user.otpExpires = null;
         await user.save();
-
-        res.status(200).json({ message: "Password updated successfully! You can now log in." });
+        res.status(200).json({ message: "Password updated." });
     } catch (err) {
-        res.status(500).json({ error: err.message });
+        res.status(500).json({ message: err.message });
     }
 });
-// ==========================================
-// 2. PRODUCT CATALOG ENDPOINTS
-// ==========================================
 
-// FETCH ALL PRODUCTS
+// ==========================================
+// 2. PRODUCTS
+// ==========================================
 router.get('/products', async (req, res) => {
-    try {
-        const products = await Product.find();
-        res.status(200).json(products);
-    } catch (err) {
-        res.status(500).json({ error: err.message });
+    try { 
+        const products = await Product.find(); 
+        res.status(200).json(products); 
+    } catch (err) { 
+        res.status(500).json({ message: err.message }); 
     }
 });
 
-// ADD NEW PRODUCT (For Admin Panel)
-router.post('/admin/add-product', async (req, res) => {
+// 🌟 SINGLE PRODUCT DETAILS LOOKUP ROUTE
+router.get('/products/:id', async (req, res) => {
     try {
-        const newProduct = new Product(req.body);
-        await newProduct.save();
-        res.status(201).json({ message: "Product added successfully!", product: newProduct });
-    } catch (err) {
-        res.status(400).json({ error: err.message });
-    }
-});
+        const requestedId = req.params.id;
+        let product = null;
 
-// ==========================================
-// 3. SHOPPING CART ENDPOINTS
-// ==========================================
-
-// ADD ITEM TO CART
-router.post('/cart/add', async (req, res) => {
-    try {
-        const cartItem = new Cart(req.body);
-        await cartItem.save();
-        res.status(201).json({ message: "Item added to cart successfully!" });
-    } catch (err) {
-        res.status(400).json({ error: err.message });
-    }
-});
-
-// GET USER SPECIFIC CART ITEMS
-router.get('/cart/:userId', async (req, res) => {
-    try {
-        const items = await Cart.find({ userId: req.params.userId });
-        res.status(200).json(items);
-    } catch (err) {
-        res.status(500).json({ error: err.message });
-    }
-});
-
-// ==========================================
-// 4. SECURE CHECKOUT & ORDERS ENDPOINT
-// ==========================================
-
-// SECURE PLACE ORDER & CLEAR CART
-router.post('/orders/checkout', async (req, res) => {
-    const { userId, shippingAddress, paymentDetails } = req.body;
-    try {
-        // 1. Fetch user items from cart
-        const items = await Cart.find({ userId });
-        if (items.length === 0) return res.status(400).json({ message: "Cart is empty" });
-
-        // 2. Simulating a secure third-party gateway payment processing handshake
-        const paymentSuccessful = true; 
-
-        if (paymentSuccessful) {
-            // Save inside Order History Document Collection
-            const newOrder = new Orders({
-                userId,
-                address: shippingAddress,
-                title: `Order of ${items.length} items`,
-                price: items.reduce((acc, i) => acc + (i.price * i.quantity), 0),
-                paymentmethod: "Credit Card (Secured via Gateway)",
-                orderstatus: "Paid & Processing"
-            });
-            await newOrder.save();
-
-            // Clear User's Cart completely post-purchase
-            await Cart.deleteMany({ userId });
-            res.status(200).json({ message: "Payment Authorized! Order placed safely.", orderId: newOrder._id });
+        if (requestedId && requestedId.match(/^[0-9a-fA-F]{24}$/)) {
+            product = await Product.findById(requestedId);
         }
+
+        if (!product) {
+            product = await Product.findOne({ 
+                $or: [{ id: requestedId }, { _id: requestedId }] 
+            });
+        }
+
+        if (!product) {
+            return res.status(404).json({ success: false, message: "Product specs could not be located." });
+        }
+
+        res.status(200).json(product);
     } catch (err) {
-        res.status(500).json({ error: err.message });
+        console.error("Error fetching product by ID:", err);
+        res.status(500).json({ message: err.message });
+    }
+});
+
+router.post('/admin/add-product', verifyAdmin, async (req, res) => {
+    try { 
+        const newProduct = new Product(req.body); 
+        await newProduct.save(); 
+        res.status(201).json(newProduct); 
+    } catch (err) { 
+        res.status(400).json({ message: err.message }); 
+    }
+});
+
+// ==========================================
+// 3. CART
+// ==========================================
+router.post('/cart/add', verifyUser, async (req, res) => {
+    try {
+        const userId = req.user.id;
+        const { title, price, mainimg, quantity = 1, variant } = req.body;
+
+        let cartItem = await Cart.findOne({ userId, title, variant });
+
+        if (cartItem) {
+            cartItem.quantity += Number(quantity);
+            await cartItem.save();
+        } else {
+            cartItem = new Cart({
+                userId,
+                title,
+                price,
+                mainimg: mainimg || '',
+                quantity: Number(quantity),
+                variant: variant || ''
+            });
+            await cartItem.save();
+        }
+
+        const updatedCart = await Cart.find({ userId });
+        res.status(200).json({ success: true, message: "Added to cart successfully!", cart: updatedCart });
+    } catch (err) {
+        console.error("Cart add error:", err);
+        res.status(400).json({ success: false, message: err.message });
+    }
+});
+
+router.get('/cart/:userId', verifyUser, async (req, res) => {
+    try { 
+        const items = await Cart.find({ userId: req.params.userId }); 
+        res.status(200).json(items); 
+    } catch (err) { 
+        res.status(500).json({ message: err.message }); 
+    }
+});
+
+// ==========================================
+// 4. ORDERS & USER VAULT
+// ==========================================
+router.post('/orders/checkout', verifyUser, async (req, res) => {
+    try {
+        const cartItems = await Cart.find({ userId: req.user.id });
+        const total = cartItems.reduce((acc, i) => acc + (i.price * i.quantity), 0);
+        
+        const newOrder = new Orders({ 
+            userId: req.user.id, 
+            address: req.body.shippingAddress, 
+            items: cartItems, 
+            totalPrice: total, 
+            paymentmethod: req.body.paymentMethod, 
+            orderstatus: req.body.paymentMethod === 'COD' ? 'Placed' : 'Paid' 
+        });
+        
+        await newOrder.save();
+        await Cart.deleteMany({ userId: req.user.id });
+        res.status(200).json({ success: true, orderId: newOrder._id });
+    } catch (err) { 
+        res.status(500).json({ message: err.message }); 
+    }
+});
+
+// GET USER ORDERS BY PARAMETER
+router.get('/user-orders/:userId', verifyUser, async (req, res) => {
+    try {
+        const history = await Orders.find({ userId: req.params.userId }).sort({ createdAt: -1 });
+        res.status(200).json({ success: true, orders: history });
+    } catch (err) {
+        res.status(500).json({ success: false, message: err.message });
+    }
+});
+
+// GET MY ORDERS VIA JWT USER ID
+router.get('/orders/my-orders', verifyUser, async (req, res) => {
+    try {
+        const history = await Orders.find({ userId: req.user.id }).sort({ createdAt: -1 });
+        res.status(200).json({ success: true, orders: history });
+    } catch (err) {
+        res.status(500).json({ success: false, message: err.message });
+    }
+});
+
+// USER CANCEL ORDER
+router.put('/orders/:id/cancel', verifyUser, async (req, res) => {
+    try {
+        const order = await Orders.findOneAndUpdate({ _id: req.params.id, userId: req.user.id }, { orderstatus: "Cancelled" }, { new: true });
+        if (!order) return res.status(404).json({ message: "Order not found" });
+        res.status(200).json({ success: true, message: "Order cancelled successfully", order });
+    } catch (err) {
+        res.status(500).json({ message: err.message });
+    }
+});
+
+// ==========================================
+// 5. ADMIN ORDERS PIPELINE
+// ==========================================
+router.get('/admin/orders', verifyAdmin, async (req, res) => {
+    try {
+        const orders = await Orders.find().sort({ createdAt: -1 }); 
+        res.status(200).json({ success: true, orders });
+    } catch (err) {
+        res.status(500).json({ message: err.message });
+    }
+});
+
+// ADMIN UPDATE ORDER STATUS
+router.put('/admin/orders/:id/status', verifyAdmin, async (req, res) => {
+    try {
+        const { orderstatus } = req.body;
+        const updatedOrder = await Orders.findByIdAndUpdate(
+            req.params.id,
+            { orderstatus },
+            { new: true }
+        );
+        if (!updatedOrder) {
+            return res.status(404).json({ success: false, message: "Order not found" });
+        }
+        res.json({ success: true, order: updatedOrder });
+    } catch (err) {
+        res.status(500).json({ success: false, message: err.message });
+    }
+});
+
+// ==========================================
+// 6. WISHLIST
+// ==========================================
+router.post('/wishlist/add', verifyUser, async (req, res) => {
+    try {
+        await User.findByIdAndUpdate(req.user.id, { $addToSet: { wishlist: req.body.productId } });
+        res.status(200).json({ message: "Added to wishlist" });
+    } catch (err) {
+        res.status(500).json({ message: err.message });
     }
 });
 
