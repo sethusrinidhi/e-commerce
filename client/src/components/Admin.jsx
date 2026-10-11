@@ -78,13 +78,13 @@ const Admin = ({ token, setPage, setUser }) => {
     setProduct((prev) => ({ ...prev, [name]: value }));
   };
 
-  // 📦 Fetch Orders
+  // 📦 Fetch Orders (Using relative path for Vercel multi-service routing)
   const fetchOrders = async () => {
     setOrdersLoading(true);
     setOrdersError(null);
     try {
       const activeToken = getCleanToken();
-      const response = await fetch('http://localhost:8000/api/shop/admin/orders', {
+      const response = await fetch('/api/shop/admin/orders', {
         method: 'GET',
         headers: { 'Authorization': `Bearer ${activeToken}` }
       });
@@ -109,13 +109,13 @@ const Admin = ({ token, setPage, setUser }) => {
     setUpdatingId(orderId);
     try {
       const activeToken = getCleanToken();
-      const response = await fetch(`http://localhost:8000/api/shop/admin/orders/${orderId}/status`, {
+      const response = await fetch(`/api/shop/admin/orders/${orderId}/status`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${activeToken}`
         },
-        body: JSON.stringify({ status: newStatus })
+        body: JSON.stringify({ orderstatus: newStatus })
       });
       const data = await response.json();
       if (response.ok) {
@@ -135,13 +135,13 @@ const Admin = ({ token, setPage, setUser }) => {
     setUpdatingId(orderId);
     try {
       const activeToken = getCleanToken();
-      const response = await fetch(`http://localhost:8000/api/shop/admin/orders/${orderId}/status`, {
+      const response = await fetch(`/api/shop/admin/orders/${orderId}/status`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${activeToken}`
         },
-        body: JSON.stringify({ status: 'Cancelled' })
+        body: JSON.stringify({ orderstatus: 'Cancelled' })
       });
       const data = await response.json();
       if (response.ok) {
@@ -162,7 +162,6 @@ const Admin = ({ token, setPage, setUser }) => {
     e.preventDefault();
     setProductMessage('');
 
-    // Filter out empty gallery image URLs
     const cleanGallery = galleryUrls.map(url => url.trim()).filter(url => url !== '');
 
     try {
@@ -175,11 +174,11 @@ const Admin = ({ token, setPage, setUser }) => {
         mainimg: product.mainimg,
         description: product.description,
         stock: parseInt(product.stock) || 0,
-        gallery: cleanGallery, // Dynamic multi-image gallery array
+        gallery: cleanGallery,
         specifications: categorySpecs
       };
 
-      const response = await fetch('http://localhost:8000/api/shop/admin/add-product', {
+      const response = await fetch('/api/shop/admin/add-product', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -271,7 +270,6 @@ const Admin = ({ token, setPage, setUser }) => {
 
             <form onSubmit={handleAddProductSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
               
-              {/* Row 1 */}
               <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr', gap: '15px' }}>
                 <div>
                   <label style={{ display: 'block', fontWeight: '600', fontSize: '13px', color: '#cbd5e1', marginBottom: '4px' }}>Product Title</label>
@@ -287,7 +285,6 @@ const Admin = ({ token, setPage, setUser }) => {
                 </div>
               </div>
 
-              {/* Row 2: Main Image + Category */}
               <div style={{ display: 'grid', gridTemplateColumns: '1.5fr 1fr', gap: '15px', alignItems: 'end' }}>
                 <div>
                   <label style={{ display: 'block', fontWeight: '600', fontSize: '13px', color: '#cbd5e1', marginBottom: '4px' }}>Main Primary Image URL (Cover)</label>
@@ -303,7 +300,6 @@ const Admin = ({ token, setPage, setUser }) => {
                 </div>
               </div>
 
-              {/* Cover Preview */}
               {product.mainimg && (
                 <div style={{ display: 'flex', gap: '10px', alignItems: 'center', background: '#080B12', padding: '10px', borderRadius: '8px', border: '1px dashed #334155' }}>
                   <img src={product.mainimg} alt="Cover Preview" onError={(e) => { e.target.style.display = 'none'; }} style={{ width: '50px', height: '50px', objectFit: 'cover', borderRadius: '6px' }} />
@@ -342,7 +338,6 @@ const Admin = ({ token, setPage, setUser }) => {
                         )}
                       </div>
 
-                      {/* Live Thumbnail Preview */}
                       {url.trim() && (
                         <div style={{ display: 'flex', gap: '10px', alignItems: 'center', marginLeft: '90px' }}>
                           <img src={url} alt={`Gallery Preview ${idx + 1}`} onError={(e) => { e.target.style.display = 'none'; }} style={{ width: '40px', height: '40px', objectFit: 'cover', borderRadius: '4px', border: '1px solid #38bdf8' }} />
@@ -354,7 +349,6 @@ const Admin = ({ token, setPage, setUser }) => {
                 </div>
               </div>
 
-              {/* Description */}
               <div>
                 <label style={{ display: 'block', fontWeight: '600', fontSize: '13px', color: '#cbd5e1', marginBottom: '4px' }}>Product Narrative / Description</label>
                 <textarea name="description" rows="3" required value={product.description} onChange={handleProductChange} placeholder="Write product highlights..." style={{ width: '100%', padding: '10px 14px', background: '#080B12', border: '1px solid #334155', borderRadius: '8px', color: '#fff', fontFamily: 'inherit', fontSize: '13px', boxSizing: 'border-box' }} />
